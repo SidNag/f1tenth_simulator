@@ -1,0 +1,18 @@
+# Pure pursuit in the F1TENTH gym sim (ground truth via static map->odom, or SLAM/AMCL)
+pure_pursuit:
+  ros__parameters:
+    drive_topic: /ego_racecar/drive
+    map_frame: map
+    base_frame: ego_racecar/base_link
+    waypoint_file: ""          # sim_pp.launch.py fills in the installed waypoints/levine_lap.csv
+    wheelbase: 0.33
+    max_steer: 0.26
+    speed: 1.5
+    use_csv_speed: false
+    lookahead_min: 0.6
+    lookahead_gain: 0.3
+    rate_hz: 50.0
+    use_deadman: false
+    deadman_button: 5
+    joy_topic: /joy
+    tf_timeout: 0.2

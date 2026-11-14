@@ -1,0 +1,18 @@
+# Pure pursuit on the real car (pose from AMCL / slam_toolbox / Vicon via TF map->base_link)
+pure_pursuit:
+  ros__parameters:
+    drive_topic: /drive
+    map_frame: map
+    base_frame: base_link
+    waypoint_file: /home/orin/maps/track_wp.csv   # placeholder: tomorrow's logged lap
+    wheelbase: 0.33            # measure on the car tomorrow
+    max_steer: 0.26
+    speed: 0.5                 # 0.5 -> 1.0 -> 1.5
+    use_csv_speed: false
+    lookahead_min: 0.6
+    lookahead_gain: 0.3
+    rate_hz: 50.0
+    use_deadman: true          # hold the deadman (RB, button 5) to move
+    deadman_button: 5
+    joy_topic: /joy
+    tf_timeout: 0.2
