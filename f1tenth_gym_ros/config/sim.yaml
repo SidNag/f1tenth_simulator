@@ -44,16 +44,17 @@ bridge:
 
     # map parameters (path will be resolved relative to package share directory)
     # Use just the map name without extension, e.g., 'square', 'levine', 'Spielberg_map'
-    map_path: 'levine'
+    map_path: 'car_track'      # real track from the car (SLAM 11/14); use 'levine' for the course map
     map_img_ext: '.png'
 
     # opponent parameters
     num_agent: 1
 
     # ego starting pose on map
-    sx: 0.0
-    sy: 0.0
-    stheta: 0.0
+    # start = first waypoint of ece484_racing/waypoints/car_track.csv (levine: 0, 0, 0)
+    sx: -0.10
+    sy: 0.55
+    stheta: -2.606
 
     # opp starting pose on map
     sx1: 2.0

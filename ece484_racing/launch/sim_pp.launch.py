@@ -30,6 +30,7 @@ def generate_launch_description():
         DeclareLaunchArgument('waypoint_file', default_value=default_wp),
         DeclareLaunchArgument('speed', default_value='1.5'),
         DeclareLaunchArgument('lookahead_min', default_value='0.6'),
+        DeclareLaunchArgument('wheelbase', default_value='0.33'),
         DeclareLaunchArgument('closed_loop', default_value='true',
                               description='false for an open path (stop at the last waypoint)'),
     ]
@@ -46,6 +47,7 @@ def generate_launch_description():
             'speed': ParameterValue(LaunchConfiguration('speed'), value_type=float),
             'lookahead_min': ParameterValue(LaunchConfiguration('lookahead_min'), value_type=float),
             'closed_loop': ParameterValue(LaunchConfiguration('closed_loop'), value_type=bool),
+            'wheelbase': ParameterValue(LaunchConfiguration('wheelbase'), value_type=float),
         }],
     )
     return LaunchDescription(args + [static_tf, pure_pursuit])
