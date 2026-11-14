@@ -5,7 +5,7 @@ pure_pursuit:
     map_frame: map
     base_frame: base_link
     waypoint_file: /home/orin/maps/track_wp.csv   # placeholder: tomorrow's logged lap
-    wheelbase: 0.33            # measure on the car tomorrow
+    wheelbase: 0.34            # measured 13.4 in (11/14)
     max_steer: 0.26
     speed: 0.5                 # 0.5 -> 1.0 -> 1.5
     use_csv_speed: false
