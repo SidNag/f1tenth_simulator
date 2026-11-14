@@ -16,3 +16,6 @@ pure_pursuit:
     deadman_button: 5
     joy_topic: /joy
     tf_timeout: 0.2
+    closed_loop: false         # hallway with a bend: slow down and stop at the end
+    stop_ramp: 1.0             # m: ramp speed to 0 over the last metre
+    stop_dist: 0.3             # m: stop when this close to the last waypoint

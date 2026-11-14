@@ -16,3 +16,4 @@ pure_pursuit:
     deadman_button: 5
     joy_topic: /joy
     tf_timeout: 0.2
+    closed_loop: true          # Levine is a lap

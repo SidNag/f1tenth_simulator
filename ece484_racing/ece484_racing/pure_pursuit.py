@@ -22,11 +22,19 @@ point on ~/lookahead, and the waypoint path as nav_msgs/Path on ~/path, so you
 can see both in RViz.
 
 Waypoint CSV format: columns x,y and optionally v (speed). A header row is
-optional. The path is treated as a closed loop.
+optional.
+
+closed_loop (default true): the path is a lap and wraps from the last waypoint
+to the first. With closed_loop false (e.g. a hallway), nothing wraps: the goal
+point is clamped to the last waypoint, speed ramps linearly to 0 over the last
+`stop_ramp` metres, and the car stops (and stays stopped) once it is within
+`stop_dist` of the last waypoint. Releasing the deadman resets this, so you can
+carry the car back to the start and run again.
 """
 import csv
 import math
 import os
+import signal
 
 import numpy as np
 import rclpy
@@ -87,9 +95,17 @@ class PurePursuit(Node):
         joy_topic = p('joy_topic', '/joy').value
         self.tf_timeout = float(p('tf_timeout', 0.2).value)
         self.search_window = int(p('search_window', 50).value)
+        self.closed_loop = bool(p('closed_loop', True).value)
+        self.stop_ramp = float(p('stop_ramp', 1.0).value)   # open path: slow down over the last metres
+        self.stop_dist = float(p('stop_dist', 0.3).value)   # open path: stop this close to the end
+        self.relocalize_dist = float(p('relocalize_dist', 1.0).value)  # full re-search if farther
 
         self.xy, self.csv_speeds = load_waypoints(self.waypoint_file)
         self.n = len(self.xy)
+        # arc length from the first waypoint to each waypoint
+        self.s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(self.xy, axis=0), axis=1))]
+        self.finished = False     # open path: reached the end, hold speed 0
+        self.last_pose = None     # to detect jumps (2D Pose Estimate, car carried back)
         if self.use_csv_speed and self.csv_speeds is None:
             self.get_logger().warn('use_csv_speed is true but the CSV has no v column; using `speed`')
             self.use_csv_speed = False
@@ -111,12 +127,23 @@ class PurePursuit(Node):
         self.create_timer(1.0 / rate_hz, self.tick)
         self.get_logger().info(
             f'Loaded {self.n} waypoints from {self.waypoint_file}; speed={self.speed} m/s, '
-            f'Ld={self.lookahead_min}+{self.lookahead_gain}*v, deadman={self.use_deadman}')
+            f'Ld={self.lookahead_min}+{self.lookahead_gain}*v, deadman={self.use_deadman}, '
+            f'closed_loop={self.closed_loop}')
 
     # ------------------------------------------------------------------ inputs
     def joy_cb(self, msg):
         held = len(msg.buttons) > self.deadman_button and msg.buttons[self.deadman_button] == 1
+        was_held = self.last_joy is not None and self.last_joy[1]
+        if was_held and not held:
+            self.reset_progress()  # deadman released: next run starts with a fresh search
         self.last_joy = (self.get_clock().now(), held)
+
+    def reset_progress(self):
+        """Forget where we were on the path (e.g. the car was carried back to the start)."""
+        if self.finished:
+            self.get_logger().info('Progress reset; ready for another run')
+        self.nearest_idx = None
+        self.finished = False
 
     def deadman_ok(self):
         if not self.use_deadman:
@@ -144,13 +171,21 @@ class PurePursuit(Node):
 
     # ------------------------------------------------------------- path logic
     def find_nearest(self, x, y):
-        """Index of the closest waypoint, searching only a window ahead of the last one."""
-        if self.nearest_idx is None:
-            candidates = np.arange(self.n)  # first tick: search everything
-        else:
-            candidates = (self.nearest_idx + np.arange(self.search_window)) % self.n
-        d2 = np.sum((self.xy[candidates] - (x, y)) ** 2, axis=1)
-        self.nearest_idx = int(candidates[np.argmin(d2)])
+        """Index of the closest waypoint, searching only a window ahead of the last one.
+
+        Falls back to searching the whole path on the first tick, or when the
+        windowed result is more than relocalize_dist away (the car was moved).
+        """
+        if self.nearest_idx is not None:
+            ahead = self.nearest_idx + np.arange(self.search_window)
+            candidates = ahead % self.n if self.closed_loop else ahead[ahead < self.n]
+            d2 = np.sum((self.xy[candidates] - (x, y)) ** 2, axis=1)
+            k = int(np.argmin(d2))
+            if d2[k] <= self.relocalize_dist ** 2:
+                self.nearest_idx = int(candidates[k])
+                return self.nearest_idx
+        d2 = np.sum((self.xy - (x, y)) ** 2, axis=1)  # full search
+        self.nearest_idx = int(np.argmin(d2))
         return self.nearest_idx
 
     def find_goal(self, x, y, start_idx, ld):
@@ -160,7 +195,8 @@ class PurePursuit(Node):
         the circle, solves |p0 + t*(p1-p0) - car| = ld for t in [0, 1].
         """
         car = np.array([x, y])
-        for k in range(self.n):
+        steps = self.n if self.closed_loop else self.n - 1 - start_idx
+        for k in range(steps):
             p0 = self.xy[(start_idx + k) % self.n]
             p1 = self.xy[(start_idx + k + 1) % self.n]
             if np.linalg.norm(p1 - car) < ld:
@@ -176,6 +212,8 @@ class PurePursuit(Node):
                 if 0.0 <= t <= 1.0:
                     return p0 + t * d
             return p1  # start point already outside the circle; just aim at p1
+        if not self.closed_loop:
+            return self.xy[-1]  # near the end of an open path: aim at the last waypoint
         return self.xy[(start_idx + 1) % self.n]  # whole path inside the circle (tiny loop)
 
     # ------------------------------------------------------------- main loop
@@ -185,9 +223,27 @@ class PurePursuit(Node):
             self.publish_drive(0.0, 0.0)
             return
         x, y, yaw = pose
+        if self.last_pose is not None and \
+                math.hypot(x - self.last_pose[0], y - self.last_pose[1]) > self.relocalize_dist:
+            self.get_logger().info('Pose jumped; re-searching the whole path')
+            self.reset_progress()
+        self.last_pose = (x, y)
 
         idx = self.find_nearest(x, y)
         speed = float(self.csv_speeds[idx]) if self.use_csv_speed else self.speed
+
+        if not self.closed_loop:
+            # Remaining distance: along the path, or straight-line once close to the end.
+            remaining = self.s[-1] - self.s[idx]
+            if remaining < 2.0 * self.stop_ramp:
+                remaining = math.hypot(self.xy[-1][0] - x, self.xy[-1][1] - y)
+            if remaining < self.stop_dist and not self.finished:
+                self.finished = True
+                self.get_logger().info(f'Reached the end of the path ({remaining:.2f} m); stopping')
+            if self.finished:
+                self.publish_drive(0.0, 0.0)
+                return
+            speed *= min(1.0, remaining / self.stop_ramp)  # linear ramp to 0 at the end
         ld = self.lookahead_min + self.lookahead_gain * speed
         gx, gy = self.find_goal(x, y, idx, ld)
 
@@ -246,6 +302,10 @@ def main(args=None):
     # Handle Ctrl-C ourselves (KeyboardInterrupt) so the ROS context is still valid
     # in `finally` and we can still publish/save before shutting down.
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    # Turn SIGINT/SIGTERM into KeyboardInterrupt explicitly: a process started in
+    # the background can inherit SIGINT as "ignored", and ros2 launch sends SIGINT.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     node = PurePursuit()
     try:
         rclpy.spin(node)

@@ -2,6 +2,7 @@
 
   ros2 launch ece484_racing sim_pp.launch.py [speed:=1.5] [waypoint_file:=/abs/path.csv]
                                              [lookahead_min:=0.6] [static_map_odom:=true]
+                                             [closed_loop:=false]
 
 static_map_odom:=true publishes an identity map -> odom transform. Use it for
 ground-truth testing (the sim's odom IS ground truth). Set it to false when
@@ -29,6 +30,8 @@ def generate_launch_description():
         DeclareLaunchArgument('waypoint_file', default_value=default_wp),
         DeclareLaunchArgument('speed', default_value='1.5'),
         DeclareLaunchArgument('lookahead_min', default_value='0.6'),
+        DeclareLaunchArgument('closed_loop', default_value='true',
+                              description='false for an open path (stop at the last waypoint)'),
     ]
 
     static_tf = Node(
@@ -42,6 +45,7 @@ def generate_launch_description():
             'waypoint_file': LaunchConfiguration('waypoint_file'),
             'speed': ParameterValue(LaunchConfiguration('speed'), value_type=float),
             'lookahead_min': ParameterValue(LaunchConfiguration('lookahead_min'), value_type=float),
+            'closed_loop': ParameterValue(LaunchConfiguration('closed_loop'), value_type=bool),
         }],
     )
     return LaunchDescription(args + [static_tf, pure_pursuit])

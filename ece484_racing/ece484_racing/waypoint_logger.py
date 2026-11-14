@@ -12,6 +12,7 @@ The CSV (header "x,y") is written every 100 points and again on Ctrl-C.
 import csv
 import math
 import os
+import signal
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
@@ -71,6 +72,10 @@ def main(args=None):
     # Handle Ctrl-C ourselves (KeyboardInterrupt) so the ROS context is still valid
     # in `finally` and we can still publish/save before shutting down.
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    # Turn SIGINT/SIGTERM into KeyboardInterrupt explicitly: a process started in
+    # the background can inherit SIGINT as "ignored", and ros2 launch sends SIGINT.
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     node = WaypointLogger()
     try:
         rclpy.spin(node)
