@@ -107,7 +107,8 @@ class GymBridge(Node):
         scan_beams = self.get_parameter('scan_beams').value
         self.angle_min = -scan_fov / 2.
         self.angle_max = scan_fov / 2.
-        self.angle_inc = scan_fov / scan_beams
+        # f110_gym spaces beams fov/(beams-1) apart; this keeps (max-min)/inc+1 == beams (slam_toolbox requires it)
+        self.angle_inc = scan_fov / (scan_beams - 1)
         ego_odom_topic = self.ego_namespace + '/' + self.get_parameter('ego_odom_topic').value
         self.scan_distance_to_base_link = self.get_parameter('scan_distance_to_base_link').value
         self.odom_frame = self.get_parameter('odom_frame').value
