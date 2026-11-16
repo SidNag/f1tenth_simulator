@@ -22,13 +22,17 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.substitutions import Command
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import Command, LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 import os
 import yaml
 
 def generate_launch_description():
     ld = LaunchDescription()
+    ld.add_action(DeclareLaunchArgument('use_map_server', default_value='true',
+                                         description='Start nav2 map_server and its lifecycle manager'))
     package_share_dir = get_package_share_directory('f1tenth_gym_ros')
     config = os.path.join(package_share_dir, 'config', 'sim.yaml')
     
@@ -61,6 +65,7 @@ def generate_launch_description():
         package='nav2_map_server',
         executable='map_server',
         name='map_server',
+        condition=IfCondition(LaunchConfiguration('use_map_server')),
         parameters=[{'yaml_filename': map_yaml_file},
                     {'topic': 'map'},
                     {'frame_id': 'map'},
@@ -71,6 +76,7 @@ def generate_launch_description():
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
         name='lifecycle_manager_localization',
+        condition=IfCondition(LaunchConfiguration('use_map_server')),
         output='screen',
         parameters=[{'use_sim_time': True},
                     {'autostart': True},

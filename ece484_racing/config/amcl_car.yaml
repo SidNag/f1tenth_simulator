@@ -1,0 +1,60 @@
+# AMCL + map_server for the real car on the fixed track map (car3, ROS 2 Jazzy).
+# Map, initial pose and use_sim_time are set by launch/car_pp.launch.py.
+map_server:
+  ros__parameters:
+    yaml_filename: /home/orin/sid/maps/track_fixed.yaml
+    topic_name: map
+    frame_id: map
+
+amcl:
+  ros__parameters:
+    global_frame_id: map
+    odom_frame_id: odom
+    base_frame_id: base_link
+    scan_topic: scan
+    map_topic: map
+    robot_model_type: nav2_amcl::DifferentialMotionModel
+    tf_broadcast: true
+    transform_tolerance: 0.5
+    # VESC odom is decent after the sign/gain fix but slips a bit in corners
+    alpha1: 0.1
+    alpha2: 0.1
+    alpha3: 0.1
+    alpha4: 0.1
+    alpha5: 0.2
+    laser_model_type: likelihood_field
+    laser_min_range: 0.1
+    laser_max_range: 10.0        # Hokuyo UST-10LX
+    max_beams: 180
+    z_hit: 0.8
+    z_rand: 0.2
+    z_max: 0.05
+    z_short: 0.05
+    sigma_hit: 0.1
+    laser_likelihood_max_dist: 2.0
+    do_beamskip: false
+    min_particles: 500
+    max_particles: 3000
+    pf_err: 0.05
+    pf_z: 0.99
+    resample_interval: 1
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    update_min_d: 0.05
+    update_min_a: 0.05
+    save_pose_rate: 0.5
+    # Initial pose: overridden by launch args (default = where the map_1351 mapping run started)
+    set_initial_pose: true
+    always_reset_initial_pose: false
+    initial_pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.21
+    first_map_only: false
+
+lifecycle_manager_localization:
+  ros__parameters:
+    autostart: true
+    node_names: [map_server, amcl]
+    bond_timeout: 4.0
