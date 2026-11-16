@@ -1,21 +1,21 @@
-# Pure pursuit on the real car (pose from AMCL / slam_toolbox / Vicon via TF map->base_link)
+# Pure pursuit on the real car (pose from AMCL via TF map->odom->base_link)
 pure_pursuit:
   ros__parameters:
-    drive_topic: /drive
+    drive_topic: /drive            # ackermann_mux 'navigation' input (prio 10); /teleop (prio 100) wins when publishing
     map_frame: map
     base_frame: base_link
-    waypoint_file: /home/orin/maps/track_wp.csv   # placeholder: tomorrow's logged lap
+    waypoint_file: /home/orin/sid/maps/car_track_fixed.csv   # clockwise centerline of track_fixed
     wheelbase: 0.34            # measured 13.4 in (11/14)
-    max_steer: 0.26
-    speed: 0.5                 # 0.5 -> 1.0 -> 1.5
-    use_csv_speed: false
-    lookahead_min: 0.6
+    max_steer: 0.23            # RIGHT steering saturates ~0.23 rad (servo offset 0.5728 + clamp); node clamps symmetrically
+    speed: 1.0                 # used only when use_csv_speed is false
+    use_csv_speed: true        # CSV v column: 1.0 m/s straights, 0.7 m/s corners
+    lookahead_min: 0.8         # Ld = 0.8 + 0.3*v -> 1.1 m straights, 1.01 m corners
     lookahead_gain: 0.3
     rate_hz: 50.0
-    use_deadman: true          # hold the deadman (RB, button 5) to move
+    use_deadman: true          # hold RB (button 5) ONLY to move; LB = human teleop wins the mux
     deadman_button: 5
     joy_topic: /joy
-    tf_timeout: 0.2
-    closed_loop: true          # track is a loop; set false for an open path (stops at the end)
-    stop_ramp: 1.0             # m: ramp speed to 0 over the last metre
-    stop_dist: 0.3             # m: stop when this close to the last waypoint
+    tf_timeout: 0.3
+    closed_loop: true
+    stop_ramp: 1.0
+    stop_dist: 0.3
